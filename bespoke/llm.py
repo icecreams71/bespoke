@@ -474,6 +474,20 @@ class GeminiLlmClient(LlmClient):
         self._genai = genai
         self._client = genai.Client(api_key=api_key)
 
+    async def _rate_limited_generate(self, **kwargs):
+        if not hasattr(self, "_rate_lock"):
+            self._rate_lock = asyncio.Lock()
+            self._next_request_time = 0.0
+
+        async with self._rate_lock:
+            delay = self._next_request_time - time.monotonic()
+            if delay > 0:
+                await asyncio.sleep(delay)
+
+            self._next_request_time = time.monotonic() + 6.0
+
+        return await self._client.aio.models.generate_content(**kwargs)
+
     def _get_low_safety_settings(self) -> list[typing.Any]:
         return [
             self._genai.types.SafetySetting(
