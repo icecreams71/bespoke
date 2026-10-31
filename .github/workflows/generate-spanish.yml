@@ -1,0 +1,57 @@
+
+name: Generate Spanish Bespoke Cards
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Generate A1 cards
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          uv run create.py \
+            --target="Spanish" \
+            --native="Italian" \
+            --cards_per_unit=1 \
+            --cards_per_call=4 \
+            --max_difficulty=A1 \
+            --parallelism=1
+
+      - name: Translate vocabulary
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          uv run -m maintainers.translate_units \
+            --target="Spanish" \
+            --native="Italian"
+
+      - name: Package database
+        run: |
+          uv run -m maintainers.package_cards \
+            --target="Spanish" \
+            --native="Italian"
+
+      - name: Upload generated files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Spanish-A1-Output
+          path: |
+            cards/
+          if-no-files-found: warn
