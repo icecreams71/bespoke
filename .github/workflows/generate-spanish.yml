@@ -4,10 +4,14 @@ name: Generate Spanish Bespoke Cards
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   generate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -21,37 +25,54 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Generate A1 cards
+      - name: Restore previously generated cards
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PREVIOUS_RUN=$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/artifacts?name=Spanish-A1-Output&per_page=100" \
+            --jq '[.artifacts[] | select(.expired == false) |
+              select(.workflow_run.id != null)] |
+              sort_by(.created_at) | reverse |
+              .[0].workflow_run.id // empty')
+
+          if [ -n "$PREVIOUS_RUN" ]; then
+            echo "Restoring cards from run $PREVIOUS_RUN"
+            gh run download "$PREVIOUS_RUN" \
+              --name Spanish-A1-Output \
+              --dir .
+          else
+            echo "No previous cards found. Starting fresh."
+          fi
+
+      - name: Generate A1 cards for 20 minutes
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          uv run create.py \
-            --target="Spanish" \
-            --native="Italian" \
-            --cards_per_unit=1 \
-            --cards_per_call=4 \
-            --max_difficulty=A1 \
-            --parallelism=1
+          set +e
+          timeout --signal=INT --kill-after=120s 20m \
+            uv run create.py \
+              --target="Spanish" \
+              --native="Italian" \
+              --cards_per_unit=1 \
+              --cards_per_call=4 \
+              --max_difficulty=A1 \
+              --parallelism=1
 
-      - name: Translate vocabulary
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          uv run -m maintainers.translate_units \
-            --target="Spanish" \
-            --native="Italian"
+          STATUS=$?
+          if [ "$STATUS" -eq 0 ]; then
+            echo "Generation completed."
+          elif [ "$STATUS" -eq 124 ] || [ "$STATUS" -eq 130 ]; then
+            echo "Time limit reached. Saving partial progress."
+          else
+            echo "Generation exited with status $STATUS."
+          fi
 
-      - name: Package database
-        run: |
-          uv run -m maintainers.package_cards \
-            --target="Spanish" \
-            --native="Italian"
-
-      - name: Upload generated files
+      - name: Upload generated cards
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Spanish-A1-Output
-          path: |
-            cards/
+          path: cards/
           if-no-files-found: warn
+          retention-days: 90
