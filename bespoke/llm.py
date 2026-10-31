@@ -486,7 +486,7 @@ class GeminiLlmClient(LlmClient):
 
             self._next_request_time = time.monotonic() + 6.0
 
-        return await self._rate_limited_generate(**kwargs)
+        return await self._client.aio.models.generate_content(**kwargs)
 
     def _get_low_safety_settings(self) -> list[typing.Any]:
         return [
@@ -515,7 +515,7 @@ class GeminiLlmClient(LlmClient):
     @standard_retry
     async def text_call(self, prompt: str, *, lower_safety: bool = False) -> str:
         safety_settings = self._get_low_safety_settings() if lower_safety else None
-        response = await self._client.aio.models.generate_content(
+        response = await self._rate_limited_generate(
             model=self.TEXT_MODEL,
             contents=[prompt],
             config=self._genai.types.GenerateContentConfig(
@@ -562,7 +562,7 @@ class GeminiLlmClient(LlmClient):
             f"This difficulty level is defined as: \n{difficulty_explanation}"
         )
 
-        response = await self._client.aio.models.generate_content(
+        response = await self._rate_limited_generate(
             model=self.TEXT_MODEL,
             contents=[prompt],
             config=self._genai.types.GenerateContentConfig(
@@ -580,7 +580,7 @@ class GeminiLlmClient(LlmClient):
     @standard_retry
     async def suggest_names(self, sentence: str, language: Language) -> list[str]:
         prompt = _build_suggest_names_prompt(sentence, language)
-        response = await self._client.aio.models.generate_content(
+        response = await self._rate_limited_generate(
             model=self.TEXT_MODEL,
             contents=[prompt],
             config=self._genai.types.GenerateContentConfig(
@@ -612,7 +612,7 @@ class GeminiLlmClient(LlmClient):
             marked_sentence=marked_sentence,
             existing_tags=existing_tags,
         )
-        response = await self._client.aio.models.generate_content(
+        response = await self._rate_limited_generate(
             model=self.TEXT_MODEL,
             contents=[prompt],
             config=self._genai.types.GenerateContentConfig(
@@ -645,7 +645,7 @@ class GeminiLlmClient(LlmClient):
             target_language=target_language,
             native_language=native_language,
         )
-        response = await self._client.aio.models.generate_content(
+        response = await self._rate_limited_generate(
             model=self.TEXT_MODEL,
             contents=[prompt],
             config=self._genai.types.GenerateContentConfig(
@@ -674,7 +674,7 @@ class GeminiLlmClient(LlmClient):
         else:
             instruction = "Speak: "
         text = f"{instruction}{sentence}"
-        response = await self._client.aio.models.generate_content(
+        response = await self._rate_limited_generate(
             model=self.SPEAK_MODEL,
             contents=[
                 self._genai.types.Content(
