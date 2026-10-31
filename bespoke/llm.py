@@ -486,7 +486,7 @@ class GeminiLlmClient(LlmClient):
 
             self._next_request_time = time.monotonic() + 6.0
 
-        return await self._client.aio.models.generate_content(**kwargs)
+        return await self._rate_limited_generate(**kwargs)
 
     def _get_low_safety_settings(self) -> list[typing.Any]:
         return [
